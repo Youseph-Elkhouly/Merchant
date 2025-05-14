@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="0" height="0" class="hidden">
+  <!-- Kijiji-style logo -->
+  <symbol id="kijiji-logo" viewBox="0 0 100 40">
+    <text x="10" y="30" font-family="Arial" font-size="24" font-weight="bold" fill="#ffffff">Kijiji</text>
+  </symbol>
+  
+  <!-- Facebook Marketplace-style logo -->
+  <symbol id="facebook-marketplace-logo" viewBox="0 0 200 40">
+    <text x="10" y="30" font-family="Arial" font-size="20" font-weight="bold" fill="#ffffff">Facebook Marketplace</text>
+  </symbol>
+  
+  <!-- Craigslist-style logo -->
+  <symbol id="craigslist-logo" viewBox="0 0 120 40">
+    <text x="10" y="30" font-family="Arial" font-size="24" font-weight="bold" fill="#ffffff">Craigslist</text>
+  </symbol>
+</svg> 

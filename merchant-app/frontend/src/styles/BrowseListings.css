@@ -1,0 +1,142 @@
+/* BrowseListings.css */
+.browse-listings {
+  min-height: 100vh;
+  background-color: #1C1C1C;
+  color: #ffffff;
+}
+
+/* Custom styles for Material-UI components */
+.MuiChip-root {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+.MuiTypography-root {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+/* Custom scrollbar for the filters section */
+.filters-section::-webkit-scrollbar {
+  width: 6px;
+  display: block;
+}
+
+.filters-section::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.filters-section::-webkit-scrollbar-thumb {
+  background: #FF4500;
+  border-radius: 3px;
+}
+
+/* Hover effects for cards */
+.listing-card {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.listing-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(255, 69, 0, 0.2);
+}
+
+/* Price slider custom styles */
+.MuiSlider-rail {
+  background-color: rgba(255, 69, 0, 0.3);
+}
+
+.MuiSlider-track {
+  background-color: #FF4500;
+}
+
+.MuiSlider-thumb {
+  background-color: #FF4500;
+}
+
+.MuiSlider-thumb:hover {
+  box-shadow: 0 0 0 8px rgba(255, 69, 0, 0.16);
+}
+
+/* Responsive grid adjustments */
+@media (max-width: 600px) {
+  .filters-section {
+    position: sticky;
+    top: 80px;
+    z-index: 1;
+  }
+}
+
+/* Animation for loading state */
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.loading-placeholder {
+  animation: pulse 1.5s infinite;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+/* Favorite button animation */
+.favorite-button {
+  transition: transform 0.2s ease;
+}
+
+.favorite-button:hover {
+  transform: scale(1.1);
+}
+
+.favorite-button.active {
+  color: #FF4500;
+}
+
+/* Empty state styling */
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.empty-state img {
+  max-width: 200px;
+  margin-bottom: 1rem;
+  opacity: 0.7;
+}
+
+/* Filter tags container */
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.filter-tag {
+  background: rgba(255, 69, 0, 0.1);
+  color: #FF4500;
+  border: 1px solid rgba(255, 69, 0, 0.3);
+  padding: 0.25rem 0.75rem;
+  border-radius: 16px;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-tag .remove-icon {
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.filter-tag .remove-icon:hover {
+  opacity: 1;
+} 

@@ -1,0 +1,17 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Flask Migrations
+migrations/
+
+# Pytest Cache
+.pytest_cache/
