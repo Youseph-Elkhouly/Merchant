@@ -4,7 +4,8 @@ from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
 import os
 
-from utils.database import db, migrate
+from utils.database import db
+from flask_migrate import Migrate
 from routes.auth import auth
 from routes.listings import listings
 from routes.notifications import notifications  # Optional: comment out if not implemented
@@ -21,7 +22,7 @@ app.config['JWT_SECRET_KEY'] = os.getenv("SECRET_KEY", "dev-secret-key")
 
 # ✅ Initialize extensions
 db.init_app(app)
-migrate.init_app(app, db)
+migrate = Migrate(app, db)
 jwt = JWTManager(app)
 
 # ✅ Register Blueprints
