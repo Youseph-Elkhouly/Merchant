@@ -10,11 +10,29 @@ const Navbar: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [showScrapeModal, setShowScrapeModal] = useState(false);
+  const [scrapingStatus, setScrapingStatus] = useState<'idle' | 'scraping' | 'success' | 'error'>('idle');
+  const [scrapeParams, setScrapeParams] = useState({
+    platform: 'facebook',
+    city: 'Toronto',
+    query: 'laptop',
+    maxPrice: 1000 as number | string,
+    email: '',
+    password: ''
+  });
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setIsAuthenticated(AuthService.isAuthenticated());
   }, []);
+
+  // Add this effect to update auth state when modal closes
+  useEffect(() => {
+    if (!showAuthModal) {
+      setIsAuthenticated(AuthService.isAuthenticated());
+    }
+  }, [showAuthModal]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +55,48 @@ const Navbar: React.FC = () => {
     navigate('/');
   };
 
+  const handleScrape = async () => {
+    setScrapingStatus('scraping');
+    try {
+      const body: any = {
+        platform: scrapeParams.platform,
+        city: scrapeParams.city,
+        query: scrapeParams.query,
+        max_price: typeof scrapeParams.maxPrice === 'string' ? 0 : scrapeParams.maxPrice,
+      };
+      if (scrapeParams.platform === 'facebook') {
+        if (!scrapeParams.email || !scrapeParams.password) {
+          alert('Please provide both Facebook email and password to scrape Facebook listings.');
+          setScrapingStatus('idle');
+          return;
+        }
+        body.email = scrapeParams.email;
+        body.password = scrapeParams.password;
+      }
+      const response = await fetch('http://127.0.0.1:5001/api/listings/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      if (response.ok) {
+        setScrapingStatus('success');
+        setTimeout(() => {
+          setShowScrapeModal(false);
+          setScrapingStatus('idle');
+          setScrapeParams(prev => ({ ...prev, email: '', password: '' }));
+          navigate('/browse');
+        }, 2000);
+      } else {
+        throw new Error('Scraping failed');
+      }
+    } catch (error) {
+      setScrapingStatus('error');
+      setTimeout(() => setScrapingStatus('idle'), 3000);
+    }
+  };
+
   return (
     <>
       <nav className="navbar">
@@ -45,125 +105,46 @@ const Navbar: React.FC = () => {
             <img src={logo} alt="Merchant" className="logo" />
           </Link>
 
-          <div className="nav-links">
+          {/* Hamburger icon for mobile */}
+          <button
+            className={`hamburger${mobileMenuOpen ? ' open' : ''}`}
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            aria-label="Toggle navigation menu"
+          >
+            <span className="hamburger-bar" />
+            <span className="hamburger-bar" />
+            <span className="hamburger-bar" />
+          </button>
+          {/* Overlay for mobile menu */}
+          <div className={`mobile-menu-overlay${mobileMenuOpen ? ' open' : ''}`} onClick={() => setMobileMenuOpen(false)} />
+
+          <div className={`nav-links${mobileMenuOpen ? ' open' : ''}`}>
             <div className="nav-item">
-              <Link to="/" className="nav-link">Home</Link>
+              <Link to="/" className="nav-link" onClick={() => setMobileMenuOpen(false)}>Home</Link>
             </div>
-
-            <div className="nav-item dropdown">
-              <span className="nav-link">Categories</span>
-              <div className="dropdown-content categories-dropdown">
-                <div className="dropdown-section">
-                  <h3>Electronics</h3>
-                  <Link to="/category/laptops">Laptops</Link>
-                  <Link to="/category/phones">Phones</Link>
-                  <Link to="/category/cameras">Cameras</Link>
-                  <Link to="/category/gaming">Gaming Consoles</Link>
-                </div>
-                <div className="dropdown-section">
-                  <h3>Home & Appliances</h3>
-                  <Link to="/category/kitchenware">Kitchenware</Link>
-                  <Link to="/category/furniture">Furniture</Link>
-                  <Link to="/category/decor">Home Decor</Link>
-                </div>
-                <div className="dropdown-section">
-                  <h3>Vehicles</h3>
-                  <Link to="/category/cars">Cars</Link>
-                  <Link to="/category/motorcycles">Motorcycles</Link>
-                  <Link to="/category/bicycles">Bicycles</Link>
-                </div>
-                <div className="dropdown-section">
-                  <h3>Fashion</h3>
-                  <Link to="/category/men">Men</Link>
-                  <Link to="/category/women">Women</Link>
-                  <Link to="/category/accessories">Accessories</Link>
-                </div>
-                <div className="dropdown-section">
-                  <h3>Real Estate</h3>
-                  <Link to="/category/apartments">Apartments</Link>
-                  <Link to="/category/houses">Houses</Link>
-                  <Link to="/category/commercial">Commercial Properties</Link>
-                </div>
-              </div>
-            </div>
-
             <div className="nav-item">
-              <Link to="/browse" className="nav-link">Browse Listings</Link>
+              <button 
+                className="nav-link scrape-button"
+                onClick={() => { setShowScrapeModal(true); setMobileMenuOpen(false); }}
+                disabled={scrapingStatus === 'scraping'}
+              >
+                {scrapingStatus === 'scraping' ? 'Scraping...' : 'Scrape Listings'}
+              </button>
             </div>
-
-            {isAuthenticated && (
-              <div className="nav-item dropdown">
-                <span className="nav-link">Notifications</span>
-                <div className="dropdown-content notifications-dropdown">
-                  <div className="dropdown-section">
-                    <h3>Alerts</h3>
-                    <Link to="/notifications/price-alerts">Price Alerts</Link>
-                    <Link to="/notifications/stock-alerts">Stock Alerts</Link>
-                    <Link to="/notifications/deal-alerts">Deal Alerts</Link>
-                  </div>
-                  <div className="dropdown-section">
-                    <h3>Updates</h3>
-                    <Link to="/notifications/new-listings">New Listings</Link>
-                    <Link to="/notifications/price-drops">Price Drops</Link>
-                    <Link to="/notifications/watched-items">Watched Items</Link>
-                  </div>
-                  <div className="dropdown-section">
-                    <h3>Settings</h3>
-                    <Link to="/notifications/preferences">Notification Preferences</Link>
-                    <Link to="/notifications/email-settings">Email Settings</Link>
-                    <Link to="/notifications/mobile-alerts">Mobile Alerts</Link>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="nav-item">
-              <Link to="/sell" className="nav-link highlight">Sell with Us</Link>
+              <Link to="/browse" className="nav-link highlight" onClick={() => setMobileMenuOpen(false)}>Browse Listings</Link>
+            </div>
+            <div className="nav-item">
+              <Link to="/favourites" className="nav-link" onClick={() => setMobileMenuOpen(false)}>Favourites</Link>
             </div>
           </div>
 
           <div className="nav-right">
-            <form className="search-bar" onSubmit={handleSearch}>
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <button type="submit" aria-label="Search">
-                <i className="fas fa-search"></i>
-              </button>
-            </form>
-
             {isAuthenticated ? (
-              <div className="nav-item dropdown">
-                <button className="profile-button">
-                  <i className="fas fa-user"></i>
-                </button>
-                <div className="dropdown-content profile-dropdown">
-                  <div className="dropdown-section">
-                    <h3>Account</h3>
-                    <Link to="/profile">My Profile</Link>
-                    <Link to="/dashboard">Dashboard</Link>
-                    <Link to="/settings">Account Settings</Link>
-                  </div>
-                  <div className="dropdown-section">
-                    <h3>My Activity</h3>
-                    <Link to="/listings">My Listings</Link>
-                    <Link to="/saved">Saved Items</Link>
-                    <Link to="/history">Browse History</Link>
-                  </div>
-                  <div className="dropdown-section">
-                    <h3>Help & Logout</h3>
-                    <Link to="/support">Support</Link>
-                    <Link to="/faq">FAQ</Link>
-                    <button onClick={handleSignOut} className="signout-button">
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
+              <button onClick={handleSignOut} className="signout-button">
+                Sign Out
+              </button>
+            ) :
               <div className="auth-buttons">
                 <button onClick={handleSignIn} className="nav-link auth-button signin">
                   Sign In
@@ -172,10 +153,129 @@ const Navbar: React.FC = () => {
                   Sign Up
                 </button>
               </div>
-            )}
+            }
           </div>
         </div>
       </nav>
+
+      {/* Scrape Modal */}
+      {showScrapeModal && (
+        <div className="modal-overlay" onClick={() => setShowScrapeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Scrape New Listings</h3>
+              <button 
+                className="modal-close"
+                onClick={() => setShowScrapeModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Platform:</label>
+                <select
+                  value={scrapeParams.platform}
+                  onChange={e => setScrapeParams(prev => ({ ...prev, platform: e.target.value }))}
+                >
+                  <option value="facebook">Facebook Marketplace</option>
+                  <option value="kijiji">Kijiji</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>City:</label>
+                <select 
+                  value={scrapeParams.city}
+                  onChange={(e) => setScrapeParams(prev => ({ ...prev, city: e.target.value }))}
+                >
+                  <option value="Toronto">Toronto</option>
+                  <option value="Vancouver">Vancouver</option>
+                  <option value="Montreal">Montreal</option>
+                  <option value="Calgary">Calgary</option>
+                  <option value="Edmonton">Edmonton</option>
+                  <option value="Ottawa">Ottawa</option>
+                  <option value="New York">New York</option>
+                  <option value="Los Angeles">Los Angeles</option>
+                  <option value="Chicago">Chicago</option>
+                  <option value="Miami">Miami</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Search Query:</label>
+                <input
+                  type="text"
+                  value={scrapeParams.query}
+                  onChange={(e) => setScrapeParams(prev => ({ ...prev, query: e.target.value }))}
+                  placeholder="e.g., laptop, phone, car"
+                />
+              </div>
+              <div className="form-group">
+                <label>Max Price ($):</label>
+                <input
+                  type="number"
+                  value={scrapeParams.maxPrice}
+                  onChange={(e) => setScrapeParams(prev => ({ ...prev, maxPrice: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
+                  placeholder="Enter any amount"
+                  style={{
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'textfield'
+                  }}
+                />
+              </div>
+              {scrapeParams.platform === 'facebook' && (
+                <>
+                  <div className="form-group">
+                    <label>Facebook Email:</label>
+                    <input
+                      type="email"
+                      value={scrapeParams.email}
+                      onChange={(e) => setScrapeParams(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="Enter your Facebook email"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Facebook Password:</label>
+                    <input
+                      type="password"
+                      value={scrapeParams.password}
+                      onChange={(e) => setScrapeParams(prev => ({ ...prev, password: e.target.value }))}
+                      placeholder="Enter your Facebook password"
+                      required
+                    />
+                  </div>
+                </>
+              )}
+              <div className="modal-actions">
+                <button 
+                  className="btn btn-primary"
+                  onClick={handleScrape}
+                  disabled={scrapingStatus === 'scraping' || (!scrapeParams.email || !scrapeParams.password) && scrapeParams.platform === 'facebook'}
+                >
+                  {scrapingStatus === 'scraping' ? '🕷️ Scraping...' : 'Start Scraping'}
+                </button>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => setShowScrapeModal(false)}
+                  disabled={scrapingStatus === 'scraping'}
+                >
+                  Cancel
+                </button>
+              </div>
+              {scrapingStatus === 'success' && (
+                <div className="success-message">
+                  ✅ Scraping completed! Redirecting to browse page...
+                </div>
+              )}
+              {scrapingStatus === 'error' && (
+                <div className="error-message">
+                  ❌ Scraping failed. Please try again.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <AuthModal
         open={showAuthModal}

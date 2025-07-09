@@ -9,11 +9,13 @@ const SignUp: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -21,10 +23,13 @@ const SignUp: React.FC = () => {
     }
 
     try {
-      await AuthService.signUp(email, password, name);
-      navigate('/');
-    } catch (err) {
-      setError('Registration failed. Please try again.');
+      const data = await AuthService.signUp(email, password, name);
+      setSuccess(data.message || 'Registration successful!');
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
+    } catch (err: any) {
+      setError(err?.message || 'Registration failed. Please try again.');
     }
   };
 
@@ -93,6 +98,15 @@ const SignUp: React.FC = () => {
           }}
         >
           {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert 
+          severity="success" 
+          sx={{ mb: 2 }}
+        >
+          {success}
         </Alert>
       )}
 

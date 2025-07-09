@@ -15,26 +15,42 @@ import {
   Chip,
   InputAdornment,
   Paper,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import ScrapeIcon from '@mui/icons-material/Web';
 import { useSearchParams } from 'react-router-dom';
 import '../styles/BrowseListings.css';
+import ApiService from '../services/ApiService';
+import AuthService from '../services/AuthService';
 
 interface Listing {
   id: string;
-  title: string;
-  price: number;
-  location: string;
+  title?: string;
+  price?: number;
+  location?: string;
   imageUrl?: string;
   condition?: string;
   category?: string;
   platform?: string;
   url?: string;
   date_posted?: string;
-  info?: string; // Added for new info field
+  info?: string;
 }
+
+const formatPrice = (price?: number) => {
+  if (typeof price === 'number') {
+    return `$${price.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return 'N/A';
+};
 
 const BrowseListings: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -44,8 +60,40 @@ const BrowseListings: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [sortBy, setSortBy] = useState('newest');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [favourites, setFavourites] = useState<Listing[]>([]);
+  
+  // Scrape modal state
+  const [showScrapeModal, setShowScrapeModal] = useState(false);
+  const [scrapingStatus, setScrapingStatus] = useState<'idle' | 'scraping' | 'success' | 'error'>('idle');
+  const [scrapeParams, setScrapeParams] = useState({
+    platform: 'facebook',
+    city: 'Toronto',
+    query: 'laptop',
+    maxPrice: 1000 as number | string,
+    email: '',
+    password: ''
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState(AuthService.isAuthenticated());
+
+  // Load favourites from localStorage
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    ApiService.getFavourites()
+      .then((favs: any[]) => setFavourites(favs.map(fav => ({
+        ...fav,
+        location: fav.location || '',
+        imageUrl: fav.image || '',
+        condition: fav.condition || '',
+        category: fav.category || '',
+        platform: fav.platform || '',
+        url: fav.url || '',
+        date_posted: fav.date_posted || '',
+        info: fav.info || '',
+      }))))
+      .catch(() => setFavourites([]));
+  }, [isAuthenticated]);
 
   // Fetch real data from API
   useEffect(() => {
@@ -93,20 +141,11 @@ const BrowseListings: React.FC = () => {
     fetchListings();
   }, []);
 
-  const categories = ['Electronics', 'Fashion', 'Home & Garden', 'Sports'];
   const conditions = ['New', 'Like New', 'Good', 'Fair'];
 
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
     setSearchParams({ q: searchTerm });
-  };
-
-  const toggleCategory = (category: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
   };
 
   const toggleCondition = (condition: string) => {
@@ -117,22 +156,82 @@ const BrowseListings: React.FC = () => {
     );
   };
 
+  const toggleFavourite = async (listing: Listing) => {
+    if (!isAuthenticated) {
+      alert('Please sign in to favourite listings.');
+      return;
+    }
+    const isFavourited = favourites.some(fav => fav.id === listing.id);
+    try {
+      if (isFavourited) {
+        await ApiService.removeFavourite(listing.id);
+        setFavourites(favourites.filter(fav => fav.id !== listing.id));
+      } else {
+        await ApiService.addFavourite(listing.id);
+        setFavourites([...favourites, listing]);
+      }
+    } catch (err) {
+      alert('Failed to update favourites.');
+    }
+  };
+
+  const handleScrape = async () => {
+    setScrapingStatus('scraping');
+    try {
+      const body: any = {
+        platform: scrapeParams.platform,
+        city: scrapeParams.city,
+        query: scrapeParams.query,
+        max_price: typeof scrapeParams.maxPrice === 'string' ? 0 : scrapeParams.maxPrice,
+      };
+      if (scrapeParams.platform === 'facebook') {
+        if (!scrapeParams.email || !scrapeParams.password) {
+          alert('Please provide both Facebook email and password to scrape Facebook listings.');
+          setScrapingStatus('idle');
+          return;
+        }
+        body.email = scrapeParams.email;
+        body.password = scrapeParams.password;
+      }
+      const response = await fetch('http://127.0.0.1:5001/api/listings/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      if (response.ok) {
+        setScrapingStatus('success');
+        setTimeout(() => {
+          setShowScrapeModal(false);
+          setScrapingStatus('idle');
+          setScrapeParams(prev => ({ ...prev, email: '', password: '' }));
+          window.location.reload();
+        }, 2000);
+      } else {
+        throw new Error('Scraping failed');
+      }
+    } catch (error) {
+      setScrapingStatus('error');
+      setTimeout(() => setScrapingStatus('idle'), 3000);
+    }
+  };
+
   // Filtering logic
   const filteredListings = listings.filter((listing) => {
     // Search term filter (case-insensitive)
     const matchesSearch =
       searchTerm.trim() === '' ||
-      listing.title.toLowerCase().includes(searchTerm.toLowerCase());
+      listing.title?.toLowerCase().includes(searchTerm.toLowerCase());
     // Price range filter
     const matchesPrice =
-      listing.price >= priceRange[0] && listing.price <= priceRange[1];
-    // Category filter
-    const matchesCategory =
-      selectedCategories.length === 0 || selectedCategories.includes(listing.category || '');
+      typeof listing.price === 'number' &&
+      listing.price >= priceRange[0] &&
+      listing.price <= priceRange[1];
     // Condition filter
     const matchesCondition =
       selectedConditions.length === 0 || selectedConditions.includes(listing.condition || '');
-    return matchesSearch && matchesPrice && matchesCategory && matchesCondition;
+    return matchesSearch && matchesPrice && matchesCondition;
   });
 
   return (
@@ -232,34 +331,6 @@ const BrowseListings: React.FC = () => {
             />
           </Box>
 
-          {/* Category Filters */}
-          <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 calc(50% - 8px)' } }}>
-            <Typography color="rgba(255, 255, 255, 0.7)" gutterBottom>
-              Categories
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {categories.map((category) => (
-                <Chip
-                  key={category}
-                  label={category}
-                  onClick={() => toggleCategory(category)}
-                  color={selectedCategories.includes(category) ? 'primary' : 'default'}
-                  sx={{
-                    bgcolor: selectedCategories.includes(category) 
-                      ? '#FF4500' 
-                      : 'rgba(255, 255, 255, 0.1)',
-                    color: '#ffffff',
-                    '&:hover': {
-                      bgcolor: selectedCategories.includes(category)
-                        ? '#ff5722'
-                        : 'rgba(255, 255, 255, 0.2)',
-                    },
-                  }}
-                />
-              ))}
-            </Box>
-          </Box>
-
           {/* Condition Filters */}
           <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 calc(50% - 8px)' } }}>
             <Typography color="rgba(255, 255, 255, 0.7)" gutterBottom>
@@ -307,75 +378,80 @@ const BrowseListings: React.FC = () => {
                 No listings found
               </Typography>
               <Typography variant="body1" color="rgba(255, 255, 255, 0.7)">
-                Try adjusting your filters or search terms
+                Try adjusting your filters
               </Typography>
             </Box>
           </Box>
         ) : (
           filteredListings.map((listing) => (
-            <Box 
-              key={listing.id}
-              sx={{ 
-                flex: { 
-                  xs: '1 1 100%',
-                  sm: '1 1 calc(50% - 12px)',
-                  md: '1 1 calc(33.33% - 16px)',
-                  lg: '1 1 calc(25% - 18px)'
-                }
-              }}
-            >
-              <Card className="listing-card" sx={{ 
-                bgcolor: '#262626',
-                borderRadius: 2,
-                border: '1px solid rgba(255, 69, 0, 0.1)',
-                transition: 'transform 0.2s ease-in-out',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                }
-              }}>
+          <Box 
+            key={listing.id}
+            sx={{ 
+              flex: { 
+                xs: '1 1 100%',
+                sm: '1 1 calc(50% - 12px)',
+                md: '1 1 calc(33.33% - 16px)',
+                lg: '1 1 calc(25% - 18px)'
+              }
+            }}
+          >
+            <Card className="listing-card" sx={{ 
+              bgcolor: '#262626',
+              borderRadius: 2,
+              border: '1px solid rgba(255, 69, 0, 0.1)',
+              transition: 'transform 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+              }
+            }}>
                 {listing.imageUrl ? (
-                  <CardMedia
-                    component="img"
-                    height="200"
-                    image={listing.imageUrl}
-                    alt={listing.title}
-                    sx={{ objectFit: 'cover' }}
-                  />
+              <CardMedia
+                component="img"
+                height="200"
+                image={listing.imageUrl}
+                alt={listing.title || 'Listing Image'}
+                sx={{ objectFit: 'cover' }}
+              />
                 ) : null}
-                <CardContent sx={{ position: 'relative' }}>
-                  <IconButton
-                    className="favorite-button"
-                    sx={{
-                      position: 'absolute',
-                      top: -20,
-                      right: 8,
-                      bgcolor: 'rgba(255, 255, 255, 0.1)',
-                      '&:hover': {
-                        bgcolor: 'rgba(255, 69, 0, 0.2)',
-                      }
-                    }}
-                  >
+              <CardContent sx={{ position: 'relative' }}>
+                <IconButton
+                  className="favorite-button"
+                  onClick={() => toggleFavourite(listing)}
+                  sx={{
+                    position: 'absolute',
+                    top: -20,
+                    right: 8,
+                    bgcolor: 'rgba(255, 255, 255, 0.1)',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 69, 0, 0.2)',
+                    }
+                  }}
+                >
+                  {favourites.some(fav => fav.id === listing.id) ? (
+                    <FavoriteIcon sx={{ color: '#FF4500' }} />
+                  ) : (
                     <FavoriteBorderIcon sx={{ color: '#FF4500' }} />
-                  </IconButton>
+                  )}
+                </IconButton>
                   {/* Headline: Name as hyperlink */}
-                  <Typography 
-                    gutterBottom 
-                    variant="h6" 
-                    component="div"
-                    sx={{ 
-                      color: '#ffffff',
-                      fontFamily: "'Poppins', sans-serif",
+                <Typography 
+                  gutterBottom 
+                  variant="h6" 
+                  component="div"
+                  sx={{ 
+                    color: '#ffffff',
+                    fontFamily: "'Poppins', sans-serif",
                       fontSize: '1.1rem',
                       mb: 1
-                    }}
+                  }}
                   >
                     <a
                       href={listing.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ color: '#fff', textDecoration: 'underline' }}
-                    >
-                      {listing.title}
+                >
+                  {listing.title ?? 'Marketplace Listing'}
                     </a>
                   </Typography>
                   {/* Info section */}
@@ -385,41 +461,41 @@ const BrowseListings: React.FC = () => {
                       sx={{ color: 'rgba(255,255,255,0.85)', mb: 1 }}
                     >
                       {listing.info}
-                    </Typography>
+                </Typography>
                   )}
-                  <Typography 
-                    variant="h6" 
-                    color="#FF4500"
-                    sx={{ 
-                      fontFamily: "'Poppins', sans-serif",
-                      fontWeight: 600,
-                      mb: 1
+                <Typography 
+                  variant="h6" 
+                  color="#FF4500"
+                  sx={{ 
+                    fontFamily: "'Poppins', sans-serif",
+                    fontWeight: 600,
+                    mb: 1
+                  }}
+                >
+                  {formatPrice(listing.price as number | undefined)}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Chip
+                    label={listing.category || 'Uncategorized'}
+                    size="small"
+                    sx={{
+                      bgcolor: 'rgba(255, 69, 0, 0.1)',
+                      color: '#FF4500',
+                      fontSize: '0.75rem',
                     }}
-                  >
-                    ${listing.price}
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    <Chip
-                      label={listing.category}
-                      size="small"
-                      sx={{
-                        bgcolor: 'rgba(255, 69, 0, 0.1)',
-                        color: '#FF4500',
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                    <Chip
-                      label={listing.condition}
-                      size="small"
-                      sx={{
-                        bgcolor: 'rgba(255, 255, 255, 0.1)',
-                        color: '#ffffff',
-                        fontSize: '0.75rem',
-                      }}
-                    />
-                  </Box>
-                </CardContent>
-              </Card>
+                  />
+                  <Chip
+                    label={listing.condition || 'Unknown'}
+                    size="small"
+                    sx={{
+                      bgcolor: 'rgba(255, 255, 255, 0.1)',
+                      color: '#ffffff',
+                      fontSize: '0.75rem',
+                    }}
+                  />
+                </Box>
+              </CardContent>
+            </Card>
             </Box>
           ))
         )}

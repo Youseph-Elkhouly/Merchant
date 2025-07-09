@@ -1,3 +1,5 @@
+import AuthService from './AuthService';
+
 interface Listing {
   id: string;
   title: string;
@@ -61,6 +63,45 @@ export const ApiService = {
     if (!response.ok) {
       throw new Error('Failed to delete listing');
     }
+  },
+
+  async getFavourites(): Promise<Listing[]> {
+    const token = AuthService.getToken();
+    if (!token) throw new Error('Not authenticated');
+    const response = await fetch('http://127.0.0.1:5001/api/listings/favourites', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Failed to fetch favourites');
+    const data = await response.json();
+    return data.favourites || [];
+  },
+
+  async addFavourite(listingId: string): Promise<void> {
+    const token = AuthService.getToken();
+    if (!token) throw new Error('Not authenticated');
+    const response = await fetch('http://127.0.0.1:5001/api/listings/favourites', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ listing_id: listingId })
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Favourites API error:', errorText);
+      throw new Error('Failed to add favourite');
+    }
+  },
+
+  async removeFavourite(listingId: string): Promise<void> {
+    const token = AuthService.getToken();
+    if (!token) throw new Error('Not authenticated');
+    const response = await fetch(`http://127.0.0.1:5001/api/listings/favourites/${listingId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Failed to remove favourite');
   },
 };
 

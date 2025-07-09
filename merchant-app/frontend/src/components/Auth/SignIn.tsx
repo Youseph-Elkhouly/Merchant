@@ -7,17 +7,22 @@ const SignIn: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     try {
-      await AuthService.signIn(email, password);
-      navigate('/'); // Redirect to home page after successful sign in
-    } catch (err) {
-      setError('Invalid email or password');
+      const data = await AuthService.signIn(email, password);
+      setSuccess(data.message || 'Login successful!');
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
+    } catch (err: any) {
+      setError(err?.message || 'Invalid email or password');
     }
   };
 
@@ -50,6 +55,15 @@ const SignIn: React.FC = () => {
       >
         Welcome Back
       </Typography>
+
+      {success && (
+        <Alert 
+          severity="success" 
+          sx={{ mb: 2 }}
+        >
+          {success}
+        </Alert>
+      )}
 
       {error && (
         <Alert 
