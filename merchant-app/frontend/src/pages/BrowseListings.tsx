@@ -27,32 +27,70 @@ interface Listing {
   title: string;
   price: number;
   location: string;
-  imageUrl: string;
-  condition: string;
-  category: string;
+  imageUrl?: string;
+  condition?: string;
+  category?: string;
+  platform?: string;
+  url?: string;
+  date_posted?: string;
+  info?: string; // Added for new info field
 }
 
 const BrowseListings: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [sortBy, setSortBy] = useState('newest');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
 
-  // Temporary mock data
+  // Fetch real data from API
   useEffect(() => {
-    const mockListings: Listing[] = Array.from({ length: 12 }, (_, i) => ({
-      id: `listing-${i + 1}`,
-      title: `Sample Product ${i + 1}`,
-      price: Math.floor(Math.random() * 5000),
-      location: 'Toronto, ON',
-      imageUrl: `https://picsum.photos/400/300?random=${i}`,
-      condition: ['New', 'Like New', 'Good', 'Fair'][Math.floor(Math.random() * 4)],
-      category: ['Electronics', 'Fashion', 'Home & Garden', 'Sports'][Math.floor(Math.random() * 4)],
-    }));
-    setListings(mockListings);
+    const fetchListings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await fetch('http://127.0.0.1:5001/api/listings/');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('RAW API listings:', data); // Log raw API response
+        
+        // Defensive mapping: only map fields that exist
+        const transformedListings = (data.data || []).map((listing: any) => {
+          let title = listing.title && listing.title.trim() ? listing.title.trim() : '';
+          if (!title) title = 'Marketplace Listing';
+          const price = typeof listing.price === 'number' && !isNaN(listing.price) ? listing.price : null;
+          return {
+            id: listing.id?.toString() ?? '',
+            title,
+            price,
+            imageUrl: listing.image || '',
+            condition: listing.condition ?? 'Good',
+            category: listing.category ?? 'Electronics',
+            platform: listing.platform ?? '',
+            url: listing.url ?? '',
+            date_posted: listing.date_posted ?? '',
+            info: listing.info ?? '', // Only one info property
+          };
+        }).filter((listing: any) => listing.price !== null);
+        
+        setListings(transformedListings);
+      } catch (err) {
+        console.error('Error fetching listings:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch listings');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchListings();
   }, []);
 
   const categories = ['Electronics', 'Fashion', 'Home & Garden', 'Sports'];
@@ -78,6 +116,24 @@ const BrowseListings: React.FC = () => {
         : [...prev, condition]
     );
   };
+
+  // Filtering logic
+  const filteredListings = listings.filter((listing) => {
+    // Search term filter (case-insensitive)
+    const matchesSearch =
+      searchTerm.trim() === '' ||
+      listing.title.toLowerCase().includes(searchTerm.toLowerCase());
+    // Price range filter
+    const matchesPrice =
+      listing.price >= priceRange[0] && listing.price <= priceRange[1];
+    // Category filter
+    const matchesCategory =
+      selectedCategories.length === 0 || selectedCategories.includes(listing.category || '');
+    // Condition filter
+    const matchesCondition =
+      selectedConditions.length === 0 || selectedConditions.includes(listing.condition || '');
+    return matchesSearch && matchesPrice && matchesCategory && matchesCondition;
+  });
 
   return (
     <Box sx={{ 
@@ -236,107 +292,15 @@ const BrowseListings: React.FC = () => {
 
       {/* Listings Grid */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-        {listings.map((listing) => (
-          <Box 
-            key={listing.id}
-            sx={{ 
-              flex: { 
-                xs: '1 1 100%',
-                sm: '1 1 calc(50% - 12px)',
-                md: '1 1 calc(33.33% - 16px)',
-                lg: '1 1 calc(25% - 18px)'
-              }
-            }}
-          >
-            <Card className="listing-card" sx={{ 
-              bgcolor: '#262626',
-              borderRadius: 2,
-              border: '1px solid rgba(255, 69, 0, 0.1)',
-              transition: 'transform 0.2s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-              }
-            }}>
-              <CardMedia
-                component="img"
-                height="200"
-                image={listing.imageUrl}
-                alt={listing.title}
-                sx={{ objectFit: 'cover' }}
-              />
-              <CardContent sx={{ position: 'relative' }}>
-                <IconButton
-                  className="favorite-button"
-                  sx={{
-                    position: 'absolute',
-                    top: -20,
-                    right: 8,
-                    bgcolor: 'rgba(255, 255, 255, 0.1)',
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 69, 0, 0.2)',
-                    }
-                  }}
-                >
-                  <FavoriteBorderIcon sx={{ color: '#FF4500' }} />
-                </IconButton>
-                <Typography 
-                  gutterBottom 
-                  variant="h6" 
-                  component="div"
-                  sx={{ 
-                    color: '#ffffff',
-                    fontFamily: "'Poppins', sans-serif",
-                    fontSize: '1.1rem'
-                  }}
-                >
-                  {listing.title}
-                </Typography>
-                <Typography 
-                  variant="h6" 
-                  color="#FF4500"
-                  sx={{ 
-                    fontFamily: "'Poppins', sans-serif",
-                    fontWeight: 600,
-                    mb: 1
-                  }}
-                >
-                  ${listing.price}
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip
-                    label={listing.category}
-                    size="small"
-                    sx={{
-                      bgcolor: 'rgba(255, 69, 0, 0.1)',
-                      color: '#FF4500',
-                      fontSize: '0.75rem',
-                    }}
-                  />
-                  <Chip
-                    label={listing.condition}
-                    size="small"
-                    sx={{
-                      bgcolor: 'rgba(255, 255, 255, 0.1)',
-                      color: '#ffffff',
-                      fontSize: '0.75rem',
-                    }}
-                  />
-                </Box>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    mt: 1,
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  {listing.location}
-                </Typography>
-              </CardContent>
-            </Card>
+        {loading ? (
+          <Box sx={{ width: '100%', textAlign: 'center', py: 4 }}>
+            <Typography variant="h6">Loading listings...</Typography>
           </Box>
-        ))}
-        {listings.length === 0 && (
+        ) : error ? (
+          <Box sx={{ width: '100%', textAlign: 'center', py: 4 }}>
+            <Typography variant="h6" color="error">{error}</Typography>
+          </Box>
+        ) : filteredListings.length === 0 ? (
           <Box sx={{ width: '100%' }}>
             <Box className="empty-state">
               <Typography variant="h6">
@@ -347,6 +311,117 @@ const BrowseListings: React.FC = () => {
               </Typography>
             </Box>
           </Box>
+        ) : (
+          filteredListings.map((listing) => (
+            <Box 
+              key={listing.id}
+              sx={{ 
+                flex: { 
+                  xs: '1 1 100%',
+                  sm: '1 1 calc(50% - 12px)',
+                  md: '1 1 calc(33.33% - 16px)',
+                  lg: '1 1 calc(25% - 18px)'
+                }
+              }}
+            >
+              <Card className="listing-card" sx={{ 
+                bgcolor: '#262626',
+                borderRadius: 2,
+                border: '1px solid rgba(255, 69, 0, 0.1)',
+                transition: 'transform 0.2s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                }
+              }}>
+                {listing.imageUrl ? (
+                  <CardMedia
+                    component="img"
+                    height="200"
+                    image={listing.imageUrl}
+                    alt={listing.title}
+                    sx={{ objectFit: 'cover' }}
+                  />
+                ) : null}
+                <CardContent sx={{ position: 'relative' }}>
+                  <IconButton
+                    className="favorite-button"
+                    sx={{
+                      position: 'absolute',
+                      top: -20,
+                      right: 8,
+                      bgcolor: 'rgba(255, 255, 255, 0.1)',
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 69, 0, 0.2)',
+                      }
+                    }}
+                  >
+                    <FavoriteBorderIcon sx={{ color: '#FF4500' }} />
+                  </IconButton>
+                  {/* Headline: Name as hyperlink */}
+                  <Typography 
+                    gutterBottom 
+                    variant="h6" 
+                    component="div"
+                    sx={{ 
+                      color: '#ffffff',
+                      fontFamily: "'Poppins', sans-serif",
+                      fontSize: '1.1rem',
+                      mb: 1
+                    }}
+                  >
+                    <a
+                      href={listing.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#fff', textDecoration: 'underline' }}
+                    >
+                      {listing.title}
+                    </a>
+                  </Typography>
+                  {/* Info section */}
+                  {listing.info && (
+                    <Typography
+                      variant="body2"
+                      sx={{ color: 'rgba(255,255,255,0.85)', mb: 1 }}
+                    >
+                      {listing.info}
+                    </Typography>
+                  )}
+                  <Typography 
+                    variant="h6" 
+                    color="#FF4500"
+                    sx={{ 
+                      fontFamily: "'Poppins', sans-serif",
+                      fontWeight: 600,
+                      mb: 1
+                    }}
+                  >
+                    ${listing.price}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Chip
+                      label={listing.category}
+                      size="small"
+                      sx={{
+                        bgcolor: 'rgba(255, 69, 0, 0.1)',
+                        color: '#FF4500',
+                        fontSize: '0.75rem',
+                      }}
+                    />
+                    <Chip
+                      label={listing.condition}
+                      size="small"
+                      sx={{
+                        bgcolor: 'rgba(255, 255, 255, 0.1)',
+                        color: '#ffffff',
+                        fontSize: '0.75rem',
+                      }}
+                    />
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+          ))
         )}
       </Box>
     </Box>
